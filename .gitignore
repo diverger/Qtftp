@@ -1,0 +1,5 @@
+*.db
+Qtftp/Debug/
+Qtftp/Release/
+Win32/Debug/
+Qtftp/Qtftp.vcxproj.user
