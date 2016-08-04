@@ -17,25 +17,9 @@
 
 QTftp::QTftp()
 	: _d(0)
+	, _progress_data(0)
+	, _progress_callback(0)
 {
-
-}
-
-/*!
-* \brief	The write callback function
-*
-* \param[in]	ptr		The data pointer to the buffer stored the data to write
-* \param[in]	size	The
-* \return
-*/
-size_t	write_callback(char const *data, size_t element_size, size_t element_count, void *fp)
-{
-	return fwrite(data, element_size, element_count, (FILE *)fp);
-}
-
-size_t read_callback(char *data, size_t element_size, size_t element_count, void *fp)
-{
-	return fread(data, element_size, element_count, (FILE *)fp);
 }
 
 int QTftp::init()
@@ -67,7 +51,7 @@ int QTftp::init()
 		{
 			break;
 		}
-		
+				
 	} while (0);
 
 	return 0;
@@ -86,6 +70,28 @@ int QTftp::deinit()
 QTftp::~QTftp()
 {
 
+}
+
+/*!
+ * \brief	Set the progress data
+ *
+ * \param	data	The pointer to the progress data
+ * \return	none
+ */
+void QTftp::set_progress_data(void *data /* = NULL */)
+{
+	_progress_data = data;
+}
+
+/*!
+ * \brief	Set the progress callback
+ *
+ * \param	callback	The callback function pointer, should be C language calling convention 
+ * \return	none
+ */
+void QTftp::set_progress_callback(progress_callback_fptr callback /* = NULL */)
+{
+	_progress_callback = callback;
 }
 
 /*!
@@ -119,6 +125,7 @@ int QTftp::get_file(QString url, QString file_src, QString file_des)
 
 	// open the file for write
 	FILE *fp = 0;
+	size_t fsize = 0;
 	
 	do 
 	{
@@ -129,6 +136,13 @@ int QTftp::get_file(QString url, QString file_src, QString file_des)
 			err = -1;
 			break;
 		}
+
+		// Note: This may not safe, refer to:
+		// http://www.cplusplus.com/reference/cstdio/fseek/
+		// http://stackoverflow.com/questions/238603/how-can-i-get-a-files-size-in-c
+		fseek(fp, 0, SEEK_END);
+		fsize = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
 
 		res = curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)fp);
 
@@ -146,7 +160,7 @@ int QTftp::get_file(QString url, QString file_src, QString file_des)
 			break;
 		}
 
-		res = curl_easy_setopt(curl, CURLOPT_URL, qPrintable(QString("tftp:/") + url + "/" + file_src));
+		res = curl_easy_setopt(curl, CURLOPT_UPLOAD, FALSE);
 
 		if (res != CURLE_OK)
 		{
@@ -154,6 +168,46 @@ int QTftp::get_file(QString url, QString file_src, QString file_des)
 			break;
 		}
 
+		res = curl_easy_setopt(curl, CURLOPT_NOPROGRESS, FALSE);
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+
+		res = curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, _progress_callback);
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+
+		res = curl_easy_setopt(curl, CURLOPT_XFERINFODATA, _progress_data);
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+
+		res = curl_easy_setopt(curl, CURLOPT_INFILESIZE, fsize);
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+
+		res = curl_easy_setopt(curl, CURLOPT_URL, qPrintable(QString("tftp:/") + url + "/" + file_src));
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+		
 		res = curl_easy_perform(curl);
 
 		if (res != CURLE_OK)
@@ -203,6 +257,7 @@ int QTftp::put_file(QString url, QString file_src, QString file_des)
 
 	// open the file for read
 	FILE *fp = 0;
+	size_t fsize = 0;
 
 	do 
 	{
@@ -213,6 +268,13 @@ int QTftp::put_file(QString url, QString file_src, QString file_des)
 			err = -1;
 			break;
 		}
+
+		// Note: This may not safe, refer to:
+		// http://www.cplusplus.com/reference/cstdio/fseek/
+		// http://stackoverflow.com/questions/238603/how-can-i-get-a-files-size-in-c
+		fseek(fp, 0, SEEK_END);
+		fsize = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
 
 		res = curl_easy_setopt(curl, CURLOPT_READDATA, (void *)fp);
 
@@ -231,7 +293,39 @@ int QTftp::put_file(QString url, QString file_src, QString file_des)
 		}
 	
 		/* enable uploading */
-		res = curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+		res = curl_easy_setopt(curl, CURLOPT_UPLOAD, TRUE);
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+
+		res = curl_easy_setopt(curl, CURLOPT_NOPROGRESS, FALSE);
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+
+		res = curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, _progress_callback);
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+
+		res = curl_easy_setopt(curl, CURLOPT_XFERINFODATA, _progress_data);
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+
+		res = curl_easy_setopt(curl, CURLOPT_INFILESIZE, fsize);
 
 		if (res != CURLE_OK)
 		{
