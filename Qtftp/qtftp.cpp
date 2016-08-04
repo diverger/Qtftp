@@ -1,6 +1,19 @@
+/*!
+ * \file qtftp.cpp
+ * \date 2016/08/04 11:00
+ *
+ * \author diverger
+ *
+ * \brief 
+ *
+ * TODO: Reference: https://curl.haxx.se/libcurl/c/ftpupload.html
+ *
+ * \note
+ */
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include "qtftp.h"
+
 
 QTftp::QTftp()
 	: _d(0)
@@ -28,6 +41,9 @@ size_t read_callback(char *data, size_t element_size, size_t element_count, void
 int QTftp::init()
 {
 	CURLcode code = CURLE_OK;
+
+	/* In windows, this will init the winsock stuff */
+	curl_global_init(CURL_GLOBAL_ALL);
 
 	_d = curl_easy_init();
 
@@ -80,7 +96,7 @@ QTftp::~QTftp()
  * \param[in]	url			The remote server name or IP address 
  * \return					Error code
  */
-int QTftp::get_file(QString file_src, QString file_des, QString url)
+int QTftp::get_file(QString url, QString file_src, QString file_des)
 {
 	Q_ASSERT(!file_src.isEmpty());
 	Q_ASSERT(!file_des.isEmpty());
@@ -118,7 +134,7 @@ int QTftp::get_file(QString file_src, QString file_des, QString url)
 
 		if (res != CURLE_OK)
 		{
-			err = -1;
+			err = res;
 			break;
 		}
 
@@ -126,14 +142,15 @@ int QTftp::get_file(QString file_src, QString file_des, QString url)
 
 		if (res != CURLE_OK)
 		{
+			err = res;
 			break;
 		}
 
-		res = curl_easy_setopt(curl, CURLOPT_URL, qPrintable( QString("tftp:/") + url + "/" + file_src));
+		res = curl_easy_setopt(curl, CURLOPT_URL, qPrintable(QString("tftp:/") + url + "/" + file_src));
 
 		if (res != CURLE_OK)
 		{
-			err = -1;
+			err = res;
 			break;
 		}
 
@@ -141,7 +158,7 @@ int QTftp::get_file(QString file_src, QString file_des, QString url)
 
 		if (res != CURLE_OK)
 		{
-			err = -1;
+			err = res;
 		}
 
 	} while (0);
@@ -163,7 +180,7 @@ int QTftp::get_file(QString file_src, QString file_des, QString url)
  * \param[in]	url			The remote serve name or IP address
  * \return	
  */
-int QTftp::put_file(QString file_src, QString file_des, QString url)
+int QTftp::put_file(QString url, QString file_src, QString file_des)
 {
 	Q_ASSERT(!file_src.isEmpty());
 	Q_ASSERT(!file_des.isEmpty());
@@ -201,7 +218,7 @@ int QTftp::put_file(QString file_src, QString file_des, QString url)
 
 		if (res != CURLE_OK)
 		{
-			err = -1;
+			err = res;
 			break;
 		}
 
@@ -209,22 +226,32 @@ int QTftp::put_file(QString file_src, QString file_des, QString url)
 
 		if (res != CURLE_OK)
 		{
+			err = res;
 			break;
 		}
-
-		res = curl_easy_setopt(curl, CURLOPT_URL, qPrintable(url + "/" + file_des));
+	
+		/* enable uploading */
+		res = curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
 
 		if (res != CURLE_OK)
 		{
-			err = -1;
+			err = res;
 			break;
 		}
 
+		res = curl_easy_setopt(curl, CURLOPT_URL, qPrintable(QString("tftp:/") + url + "/" + file_des));
+
+		if (res != CURLE_OK)
+		{
+			err = res;
+			break;
+		}
+		
 		res = curl_easy_perform(curl);
 
 		if (res != CURLE_OK)
 		{
-			err = -1;
+			err = res;
 		}
 
 	} while (0);

@@ -12,11 +12,11 @@ public:
 	
 	int init();
 	int deinit();
-	int get_file(QString file_src, QString file_des, QString url);
-	int put_file(QString file_src, QString file_des, QString url);
+	int get_file(QString url, QString file_src, QString file_des);
+	int put_file(QString url, QString file_src, QString file_des);
 
 private:
-	void		*_d;
+	void	*_d;
 };
 
 #endif // QTFTP_H
